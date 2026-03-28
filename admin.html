@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - HR Submissions</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #111;
+            color: #eee;
+            margin: 0;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: #000;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #222;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        th {
+            background: #333;
+            color: #fff;
+        }
+
+        tr:hover {
+            background: #2a2a2a;
+        }
+
+        a {
+            color: #4da6ff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2>Admin Dashboard</h2>
+        <a href="index.html" style="color: #ccc;">Back to Careers Page</a>
+    </header>
+
+    <div class="container">
+        <h1>Candidate Applications</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date applied</th>
+                    <th>Role</th>
+                    <th>GitHub Profile</th>
+                    <th>Interview Answer</th>
+                    <th>Coding Test</th>
+                    <th>Test Result</th>
+                    <th>Grade</th>
+                </tr>
+            </thead>
+            <tbody id="submissions-table">
+                <tr>
+                    <td colspan="7" class="empty-state">Loading submissions...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function renderSubmissions(submissions) {
+            const tableBody = document.getElementById('submissions-table');
+            if (submissions.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7" class="empty-state">No candidates have applied yet!</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = ''; // Clear loading state
+            
+            // Add each submission backward so the newest is at the top
+            submissions.reverse().forEach(sub => {
+                const dateObj = new Date(sub.submittedAt);
+                const row = document.createElement('tr');
+                
+                let scoreColor = '#ccc';
+                if (sub.testScore && sub.testScore.includes('Passed')) scoreColor = '#00C851';
+                else if (sub.testScore === 'Error') scoreColor = '#ff4444';
+                else if (sub.testScore && sub.testScore.includes('N/A')) scoreColor = '#4da6ff';
+                
+                let g = sub.grade || 'Pending';
+                let gradeColor = '#ccc';
+                if (g.startsWith('A')) gradeColor = '#00C851';
+                else if (g.startsWith('B')) gradeColor = '#ffbb33';
+                else if (g.startsWith('F')) gradeColor = '#ff4444';
+                else if (g.startsWith('C')) gradeColor = '#4da6ff';
+
+                row.innerHTML = `
+                    <td style="white-space: nowrap;">${dateObj.toLocaleDateString()} ${dateObj.toLocaleTimeString()}</td>
+                    <td><strong>${sub.role}</strong></td>
+                    <td><a href="${sub.githubUrl}" target="_blank">${sub.githubUrl.split('github.com/')[1] || sub.githubUrl}</a></td>
+                    <td style="max-width: 300px; word-wrap: break-word;">${sub.answer}</td>
+                    <td style="max-width: 300px; word-wrap: break-word; overflow-x: auto;"><pre style="background:#111; padding:10px; border-radius:5px; color:#00ff00; margin:0; border:1px solid #333;">${(sub.codingAnswer || 'N/A').replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre></td>
+                    <td style="white-space: nowrap; font-weight: bold; color: ${scoreColor};">${sub.testScore || 'Not Run'}</td>
+                    <td style="white-space: nowrap; font-weight: bold; font-size: 18px; color: ${gradeColor};">${g}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        window.onload = async () => {
+            const tableBody = document.getElementById('submissions-table');
+            
+            try {
+                // Fetch all real submissions from our Python backend!
+                const response = await fetch('http://127.0.0.1:5000/api/interview/submissions');
+                
+                if (response.ok) {
+                    const submissions = await response.json();
+                    renderSubmissions(submissions);
+                } else {
+                    throw new Error("HTTP error " + response.status);
+                }
+            } catch (error) {
+                console.warn("Backend offline or error. Loading demo local submissions.", error);
+                
+                // Fallback to offline localStorage
+                const mockSubs = JSON.parse(localStorage.getItem('mockSubmissions') || '[]');
+                if (mockSubs.length > 0) {
+                    // Show a small banner alerting them they're in local mode
+                    const hdr = document.createElement('div');
+                    hdr.innerHTML = '<div style="background:#ffbb33; color:#000; text-align:center; padding:5px; font-weight:bold;">Showing Local Demo Data (Python Server Offline)</div>';
+                    document.body.insertBefore(hdr, document.querySelector('.container'));
+                    
+                    renderSubmissions(mockSubs);
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:#ffbb33;">Python server is offline, and no local demo applications have been submitted yet.</td></tr>';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
